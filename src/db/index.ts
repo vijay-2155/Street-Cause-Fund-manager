@@ -18,9 +18,10 @@ const connectionString = process.env.DATABASE_URL;
 // Create postgres client with proper configuration
 // For seed scripts and migrations, we need max: 1 to prevent connection pooling issues
 const client = postgres(connectionString, {
-  max: 1, // Single connection for scripts
+  max: 1,
   idle_timeout: 20,
   connect_timeout: 10,
+  prepare: false, // Required for Supabase Transaction pooler (pgBouncer)
 });
 
 export const db = drizzle(client, { schema });
