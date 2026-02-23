@@ -62,12 +62,12 @@ export default async function HomePage() {
             <a href="#how-it-works" className="text-[#6B7280] text-sm font-medium hover:text-[#0066FF] transition-colors">
               How it works
             </a>
-            <Link href="/blood-donors" className="flex items-center gap-1.5 text-[#6B7280] text-sm font-medium hover:text-red-500 transition-colors">
-              <Heart className="w-4 h-4" /> Blood Donors
-            </Link>
             <a href="#about" className="text-[#6B7280] text-sm font-medium hover:text-[#0066FF] transition-colors">
               About
             </a>
+            <Link href="/donate" className="text-[#6B7280] text-sm font-medium hover:text-[#0066FF] transition-colors">
+              Donate
+            </Link>
             {blogPosts.length > 0 && (
               <Link href="/blog" className="text-[#6B7280] text-sm font-medium hover:text-[#0066FF] transition-colors">
                 Blog
@@ -698,9 +698,9 @@ export default async function HomePage() {
               <a href="#features" className="text-[#6B7280] text-sm hover:text-white transition-colors">Features</a>
               <a href="#how-it-works" className="text-[#6B7280] text-sm hover:text-white transition-colors">How it works</a>
               <Link href="/donate" className="text-[#6B7280] text-sm hover:text-white transition-colors">Donate</Link>
-              <Link href="/blood-donors" className="text-[#6B7280] text-sm hover:text-white transition-colors">Blood Donors</Link>
               <Link href="/blog" className="text-[#6B7280] text-sm hover:text-white transition-colors">Blog</Link>
               <Link href="/sign-in" className="text-[#6B7280] text-sm hover:text-white transition-colors">Sign In</Link>
+              <Link href="/privacy" className="text-[#6B7280] text-sm hover:text-white transition-colors">Privacy Policy</Link>
             </div>
           </div>
 

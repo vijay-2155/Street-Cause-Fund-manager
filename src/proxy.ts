@@ -13,6 +13,7 @@ const PUBLIC_PREFIXES = [
   "/api/setup",
   "/api/webhooks",
   "/donate",
+  "/privacy",
 ];
 
 export async function proxy(request: NextRequest) {
