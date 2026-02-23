@@ -111,7 +111,7 @@ export default async function DashboardPage() {
       type: "donation" as const,
       title: `${d.donorName} - General Fund`,
       amount: Number(d.amount),
-      date: d.createdAt!,
+      date: d.createdAt!.toISOString(),
     })) || [];
 
   const expenseTransactions =
@@ -120,8 +120,8 @@ export default async function DashboardPage() {
       type: "expense" as const,
       title: e.title,
       amount: Number(e.amount),
-      date: e.createdAt!,
-      status: e.status,
+      date: e.createdAt!.toISOString(),
+      status: e.status ?? undefined,
     })) || [];
 
   const transactions = [...donationTransactions, ...expenseTransactions]
