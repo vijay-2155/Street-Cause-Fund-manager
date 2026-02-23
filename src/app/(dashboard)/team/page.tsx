@@ -29,8 +29,8 @@ import { getTeamMembers, inviteMember } from "@/app/actions/team";
 import type { Member } from "@/db/schema";
 
 export default function TeamPage() {
-  const [members, setMembers] = useState<typeof Member.$inferSelect[]>([]);
-  const [currentMember, setCurrentMember] = useState<typeof Member.$inferSelect | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [currentMember, setCurrentMember] = useState<Member | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");

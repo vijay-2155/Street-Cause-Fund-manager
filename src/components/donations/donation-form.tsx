@@ -625,7 +625,7 @@ export function DonationForm({ onSubmit, initialData, onCancel, existingScreensh
             )}
             <Button
               type="submit"
-              disabled={loading || uploadState === "uploading" || (requiresScreenshot && !screenshotUrl && uploadState !== "uploading")}
+              disabled={loading || uploadState === "uploading" || (requiresScreenshot && !screenshotUrl)}
               className="h-12 px-8 bg-gradient-to-r from-[#10B981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white shadow-xl font-bold text-base flex-1 sm:flex-none disabled:opacity-50"
             >
               {loading ? (
