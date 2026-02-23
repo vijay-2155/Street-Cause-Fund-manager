@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# clerk configuration (can include secrets)
+/.clerk/
+
+# Claude Code local settings
+.claude/
+
+# Drizzle generated output
+drizzle/
+
+# Supabase local dev
+supabase/.temp/
+supabase/config.toml
