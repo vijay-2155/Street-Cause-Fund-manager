@@ -52,7 +52,7 @@ export function extractDriveFileId(driveUrl: string): string | null {
  * Works when the file (or its parent folder) is shared "Anyone with the link can view".
  */
 export function driveFileIdToImageUrl(fileId: string): string {
-  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+  return `https://lh3.googleusercontent.com/d/${fileId}`;
 }
 
 /**

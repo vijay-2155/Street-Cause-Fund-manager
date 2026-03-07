@@ -43,6 +43,8 @@ import {
   Users,
   RotateCcw,
   Trash2,
+  ZoomIn,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -129,6 +131,7 @@ export default function RegistrationsPage() {
     open: false, id: "", name: "",
   });
   const [rejectReason, setRejectReason] = useState("");
+  const [isZoomed, setIsZoomed] = useState(false);
 
   // New config form
   const [configForm, setConfigForm] = useState({
@@ -686,7 +689,7 @@ export default function RegistrationsPage() {
       )}
 
       {/* ── Detail Dialog ─────────────────────────────────────────────────── */}
-      <Dialog open={!!detailReg} onOpenChange={(open) => !open && setDetailReg(null)}>
+      <Dialog open={!!detailReg} onOpenChange={(open) => { if (!open) { setDetailReg(null); setIsZoomed(false); } }}>
         <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
           {detailReg && (
             <>
@@ -757,32 +760,38 @@ export default function RegistrationsPage() {
                 {/* Screenshot */}
                 {detailReg.screenshotUrl ? (
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-gray-700">Payment Screenshot</p>
-                    <div className="rounded-xl overflow-hidden border-2 border-gray-200 bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-gray-700">Payment Screenshot</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs font-semibold text-[#0066FF] hover:bg-[#E6F2FF]"
+                        onClick={() => setIsZoomed(true)}
+                      >
+                        <ZoomIn className="h-3.5 w-3.5 mr-1" />
+                        View full
+                      </Button>
+                    </div>
+                    <div
+                      className="rounded-xl overflow-hidden border-2 border-gray-200 bg-gray-50 cursor-pointer"
+                      onClick={() => setIsZoomed(true)}
+                    >
                       <img
                         src={(() => {
-                          // Normalise any Drive URL to the thumbnail endpoint which embeds inline
                           const url = detailReg.screenshotUrl!;
                           const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/) || url.match(/\/d\/([a-zA-Z0-9_-]+)/);
                           return idMatch
-                            ? `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w1000`
+                            ? `https://lh3.googleusercontent.com/d/${idMatch[1]}`
                             : url;
                         })()}
                         alt="Payment screenshot"
-                        className="w-full object-contain max-h-64"
+                        className="w-full object-contain max-h-64 hover:opacity-90 transition-opacity"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = "none";
                         }}
                       />
                     </div>
-                    <a
-                      href={detailReg.screenshotDriveUrl || detailReg.screenshotUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-[#0066FF] underline"
-                    >
-                      Open full size
-                    </a>
                   </div>
                 ) : detailReg.screenshotDriveUrl ? (
                   <div className="space-y-2">
@@ -869,6 +878,36 @@ export default function RegistrationsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Screenshot Lightbox ────────────────────────────────────────────── */}
+      {isZoomed && detailReg?.screenshotUrl && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 sm:p-8"
+          onClick={() => setIsZoomed(false)}
+        >
+          <Button
+            type="button"
+            variant="destructive"
+            size="icon"
+            className="absolute top-4 right-4 z-10 rounded-full shadow-xl"
+            onClick={() => setIsZoomed(false)}
+          >
+            <X className="h-5 w-5" />
+          </Button>
+          <img
+            src={(() => {
+              const url = detailReg.screenshotUrl!;
+              const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/) || url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+              return idMatch
+                ? `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w1000`
+                : url;
+            })()}
+            alt="Full size payment screenshot"
+            className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       {/* ── Reject Dialog ─────────────────────────────────────────────────── */}
       <Dialog open={rejectDialog.open} onOpenChange={(open) => !open && setRejectDialog({ open: false, id: "", name: "" })}>
