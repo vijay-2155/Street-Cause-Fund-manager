@@ -38,7 +38,7 @@ export async function getSheetRows(
   // If startRow=5, next row to fetch is row 7 (1 header + 5 synced + 1 next)
   const startRowNum = startRow + 2;
   const range = `'${sheetName}'!A${startRowNum}:Z`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
