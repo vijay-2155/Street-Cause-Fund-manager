@@ -299,6 +299,7 @@ export async function syncRegistrations(configId: string): Promise<{
           } catch (screenshotErr: any) {
             // Screenshot download failure is non-fatal — store Drive URL as fallback
             errors.push(`Row ${rowIndex} screenshot: ${screenshotErr.message}`);
+          }
         }
       }
 
