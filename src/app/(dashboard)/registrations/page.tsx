@@ -41,6 +41,8 @@ import {
   Settings,
   AlertCircle,
   Users,
+  RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -52,6 +54,8 @@ import {
   syncRegistrations,
   approveRegistration,
   rejectRegistration,
+  deleteRegistration,
+  resetConfigSyncedRow,
 } from "@/app/actions/registrations";
 import { getEvents } from "@/app/actions/events";
 
@@ -183,6 +187,31 @@ export default function RegistrationsPage() {
       toast.error(e.message || "Sync failed");
     } finally {
       setSyncing(null);
+    }
+  };
+
+  const handleReset = async (configId: string) => {
+    if (!confirm("Reset sync pointer to 0? Next sync will re-import ALL rows (duplicates are skipped automatically).")) return;
+    try {
+      await resetConfigSyncedRow(configId);
+      toast.success("Sync pointer reset — run Sync Now to re-import");
+      await fetchAll();
+    } catch (e: any) {
+      toast.error(e.message || "Reset failed");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setProcessing(id);
+    try {
+      await deleteRegistration(id);
+      toast.success("Registration deleted");
+      setDetailReg(null);
+      await fetchAll();
+    } catch (e: any) {
+      toast.error(e.message || "Delete failed");
+    } finally {
+      setProcessing(null);
     }
   };
 
@@ -485,6 +514,16 @@ export default function RegistrationsPage() {
                     <Badge className={cfg.isActive ? "bg-[#D1FAE5] text-[#10B981] border-[#10B981] border" : "bg-gray-100 text-gray-500 border border-gray-300"}>
                       {cfg.isActive ? "Active" : "Inactive"}
                     </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleReset(cfg.id)}
+                      disabled={syncing !== null}
+                      className="h-8 px-2 border-gray-300 text-gray-500 hover:text-red-600 hover:border-red-300"
+                      title="Reset sync pointer (re-import all rows)"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </Button>
                     <Button
                       size="sm"
                       onClick={() => handleSync(cfg.id)}
@@ -800,6 +839,24 @@ export default function RegistrationsPage() {
                     </Button>
                   </div>
                 )}
+
+                {/* Delete button (always visible) */}
+                <div className="pt-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-gray-400 hover:text-red-600 hover:bg-red-50 text-xs"
+                    onClick={() => {
+                      if (confirm(`Delete registration for ${detailReg.participantName}? This cannot be undone.`)) {
+                        handleDelete(detailReg.id);
+                      }
+                    }}
+                    disabled={processing === detailReg.id}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    Delete this registration
+                  </Button>
+                </div>
               </div>
             </>
           )}

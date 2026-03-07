@@ -4,16 +4,13 @@ import { db } from "@/db";
 import {
   registrationConfigs,
   eventRegistrations,
-  members,
 } from "@/db/schema";
 import { requireRole } from "@/lib/auth/helpers";
-import { eq, and, desc, count, sum, inArray } from "drizzle-orm";
-import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
+import { eq, and, desc } from "drizzle-orm";
 import {
-  refreshGoogleAccessToken,
   getSheetRows,
-  downloadDriveFile,
   extractDriveFileId,
+  driveFileIdToImageUrl,
   normalizeGender,
   normalizeCategory,
   ticketAmountForCategory,
@@ -78,6 +75,20 @@ export async function updateRegistrationConfig(
     .where(
       and(
         eq(registrationConfigs.id, id),
+        eq(registrationConfigs.clubId, member.clubId!)
+      )
+    );
+}
+
+export async function resetConfigSyncedRow(configId: string) {
+  const member = await requireRole(["admin", "treasurer"]);
+
+  await db
+    .update(registrationConfigs)
+    .set({ lastSyncedRow: 0, updatedAt: new Date() })
+    .where(
+      and(
+        eq(registrationConfigs.id, configId),
         eq(registrationConfigs.clubId, member.clubId!)
       )
     );
@@ -181,10 +192,27 @@ export async function rejectRegistration(id: string, reason: string) {
   return { success: true };
 }
 
+export async function deleteRegistration(id: string) {
+  const member = await requireRole(["admin", "treasurer"]);
+
+  await db
+    .delete(eventRegistrations)
+    .where(
+      and(
+        eq(eventRegistrations.id, id),
+        eq(eventRegistrations.clubId, member.clubId!)
+      )
+    );
+
+  return { success: true };
+}
+
 // ─── Sync Engine ──────────────────────────────────────────────────────────────
 
 /**
  * Sync a single registration config.
+ * Sheet must be shared "Anyone with the link can view".
+ * Drive screenshot folder must also be shared "Anyone with the link can view".
  * Returns { imported, skipped, errors }
  */
 export async function syncRegistrations(configId: string): Promise<{
@@ -194,7 +222,6 @@ export async function syncRegistrations(configId: string): Promise<{
 }> {
   const member = await requireRole(["admin", "treasurer"]);
 
-  // Load config
   const config = await db.query.registrationConfigs.findFirst({
     where: and(
       eq(registrationConfigs.id, configId),
@@ -204,34 +231,9 @@ export async function syncRegistrations(configId: string): Promise<{
   if (!config) throw new Error("Registration config not found");
   if (!config.isActive) throw new Error("This configuration is inactive");
 
-  // Get the admin/treasurer's Google refresh token
-  const actor = await db.query.members.findFirst({
-    where: eq(members.id, member.id),
-    columns: { googleRefreshToken: true },
-  });
-  if (!actor?.googleRefreshToken) {
-    throw new Error(
-      "No Google credentials found. Please sign out and sign in again with Google to grant access."
-    );
-  }
-
-  // Get fresh access token
-  let accessToken: string;
-  try {
-    accessToken = await refreshGoogleAccessToken(actor.googleRefreshToken);
-  } catch (e: any) {
-    throw new Error(`Google auth failed: ${e.message}`);
-  }
-
-  // Fetch new rows from the sheet
   let rows: string[][];
   try {
-    rows = await getSheetRows(
-      accessToken,
-      config.googleSheetId,
-      config.sheetName,
-      config.lastSyncedRow
-    );
+    rows = await getSheetRows(config.googleSheetId, config.lastSyncedRow);
   } catch (e: any) {
     throw new Error(`Failed to read sheet: ${e.message}`);
   }
@@ -240,23 +242,30 @@ export async function syncRegistrations(configId: string): Promise<{
     return { imported: 0, skipped: 0, errors: [] };
   }
 
-  // Supabase admin client for server-side storage upload
-  const supabaseAdmin = createSupabaseAdmin(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
   let imported = 0;
   let skipped = 0;
   const errors: string[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const rowIndex = config.lastSyncedRow + i + 1; // 1-based data row index
+    const rowIndex = config.lastSyncedRow + i + 1;
 
     try {
       const rawName = row[FORM_COLUMNS.PARTICIPANT_NAME_AGE] || "";
       if (!rawName.trim()) {
+        skipped++;
+        continue;
+      }
+
+      // Deduplication: skip if this row was already imported
+      const existing = await db.query.eventRegistrations.findFirst({
+        where: and(
+          eq(eventRegistrations.configId, config.id),
+          eq(eventRegistrations.googleFormRowIndex, rowIndex)
+        ),
+        columns: { id: true },
+      });
+      if (existing) {
         skipped++;
         continue;
       }
@@ -274,33 +283,9 @@ export async function syncRegistrations(configId: string): Promise<{
 
       const driveUrl = row[FORM_COLUMNS.SCREENSHOT_URL] || "";
       let screenshotUrl: string | null = null;
-
-      // Download screenshot from Drive and re-upload to Supabase
       if (driveUrl) {
         const fileId = extractDriveFileId(driveUrl);
-        if (fileId) {
-          try {
-            const file = await downloadDriveFile(accessToken, fileId);
-            if (file) {
-              const filename = `registrations/${config.id}/${rowIndex}-${Date.now()}.${file.extension}`;
-              const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-                .from("screenshots")
-                .upload(filename, file.buffer, {
-                  contentType: file.mimeType,
-                  upsert: false,
-                });
-              if (!uploadError && uploadData) {
-                const { data: { publicUrl } } = supabaseAdmin.storage
-                  .from("screenshots")
-                  .getPublicUrl(uploadData.path);
-                screenshotUrl = publicUrl;
-              }
-            }
-          } catch (screenshotErr: any) {
-            // Screenshot download failure is non-fatal — store Drive URL as fallback
-            errors.push(`Row ${rowIndex} screenshot: ${screenshotErr.message}`);
-          }
-        }
+        if (fileId) screenshotUrl = driveFileIdToImageUrl(fileId);
       }
 
       await db.insert(eventRegistrations).values({
@@ -328,7 +313,6 @@ export async function syncRegistrations(configId: string): Promise<{
     }
   }
 
-  // Update lastSyncedRow
   await db
     .update(registrationConfigs)
     .set({
@@ -341,8 +325,7 @@ export async function syncRegistrations(configId: string): Promise<{
 }
 
 /**
- * Sync all active configs for the current member's club.
- * Used by the cron job.
+ * Sync all active configs for a club (used by cron).
  */
 export async function syncAllActiveConfigs(clubId: string): Promise<{
   configsSynced: number;
@@ -354,9 +337,6 @@ export async function syncAllActiveConfigs(clubId: string): Promise<{
       eq(registrationConfigs.clubId, clubId),
       eq(registrationConfigs.isActive, true)
     ),
-    with: {
-      createdByMember: { columns: { googleRefreshToken: true } },
-    },
   });
 
   let configsSynced = 0;
@@ -364,37 +344,13 @@ export async function syncAllActiveConfigs(clubId: string): Promise<{
   const errors: string[] = [];
 
   for (const config of activeConfigs) {
-    const refreshToken = (config as any).createdByMember?.googleRefreshToken;
-    if (!refreshToken) {
-      errors.push(`Config "${config.configName}": No Google credentials`);
-      continue;
-    }
-
     try {
-      let accessToken: string;
-      try {
-        accessToken = await refreshGoogleAccessToken(refreshToken);
-      } catch (e: any) {
-        errors.push(`Config "${config.configName}": Token refresh failed — ${e.message}`);
-        continue;
-      }
-
-      const rows = await getSheetRows(
-        accessToken,
-        config.googleSheetId,
-        config.sheetName,
-        config.lastSyncedRow
-      );
+      const rows = await getSheetRows(config.googleSheetId, config.lastSyncedRow);
 
       if (rows.length === 0) {
         configsSynced++;
         continue;
       }
-
-      const supabaseAdmin = createSupabaseAdmin(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
 
       let imported = 0;
       for (let i = 0; i < rows.length; i++) {
@@ -403,6 +359,15 @@ export async function syncAllActiveConfigs(clubId: string): Promise<{
         try {
           const rawName = row[FORM_COLUMNS.PARTICIPANT_NAME_AGE] || "";
           if (!rawName.trim()) continue;
+
+          const existing = await db.query.eventRegistrations.findFirst({
+            where: and(
+              eq(eventRegistrations.configId, config.id),
+              eq(eventRegistrations.googleFormRowIndex, rowIndex)
+            ),
+            columns: { id: true },
+          });
+          if (existing) continue;
 
           const { name: participantName, age: participantAge } = splitNameAge(rawName);
           const rawP2 = row[FORM_COLUMNS.PARTICIPANT2_NAME_AGE] || "";
@@ -416,31 +381,9 @@ export async function syncAllActiveConfigs(clubId: string): Promise<{
           const ticketAmount = ticketAmountForCategory(category);
           const driveUrl = row[FORM_COLUMNS.SCREENSHOT_URL] || "";
           let screenshotUrl: string | null = null;
-
           if (driveUrl) {
             const fileId = extractDriveFileId(driveUrl);
-            if (fileId) {
-              try {
-                const file = await downloadDriveFile(accessToken, fileId);
-                if (file) {
-                  const filename = `registrations/${config.id}/${rowIndex}-${Date.now()}.${file.extension}`;
-                  const { data: uploadData } = await supabaseAdmin.storage
-                    .from("screenshots")
-                    .upload(filename, file.buffer, {
-                      contentType: file.mimeType,
-                      upsert: false,
-                    });
-                  if (uploadData) {
-                    const { data: { publicUrl } } = supabaseAdmin.storage
-                      .from("screenshots")
-                      .getPublicUrl(uploadData.path);
-                    screenshotUrl = publicUrl;
-                  }
-                }
-              } catch (screenshotErr: any) {
-                errors.push(`Config "${config.configName}" row ${rowIndex} screenshot: ${screenshotErr.message}`);
-              }
-            }
+            if (fileId) screenshotUrl = driveFileIdToImageUrl(fileId);
           }
 
           await db.insert(eventRegistrations).values({

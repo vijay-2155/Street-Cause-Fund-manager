@@ -1,27 +1,8 @@
 /**
- * Google Sheets + Drive API utilities for registration sync.
- * Uses OAuth refresh tokens stored in members.googleRefreshToken.
- * Requires env vars: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+ * Google Sheets API utilities for registration sync.
+ * Uses API key — sheet must be shared "Anyone with the link can view".
+ * Requires env var: GOOGLE_API_KEY
  */
-
-export async function refreshGoogleAccessToken(refreshToken: string): Promise<string> {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(`Google token refresh failed: ${data.error_description || data.error || "Unknown error"}`);
-  }
-  return data.access_token as string;
-}
 
 /**
  * Fetch rows from a Google Sheet starting after already-synced rows.
@@ -29,25 +10,20 @@ export async function refreshGoogleAccessToken(refreshToken: string): Promise<st
  * @param startRow Number of data rows already imported (0 = fetch all)
  */
 export async function getSheetRows(
-  accessToken: string,
   sheetId: string,
-  _sheetName: string,
   startRow: number
 ): Promise<string[][]> {
-  // Row 1 = header, data starts at row 2
-  // If startRow=5, next row to fetch is row 7 (1 header + 5 synced + 1 next)
-  const startRowNum = startRow + 2;
-  // Use bare range without sheet name — defaults to first sheet, avoids name-parsing issues
+  const startRowNum = startRow + 2; // row 1 = header, data starts at row 2
   const range = `A${startRowNum}:Z`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${process.env.GOOGLE_API_KEY}`;
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const res = await fetch(url);
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error(`Google Sheets API error: ${data.error?.message || JSON.stringify(data.error) || "Unknown error"}`);
+    throw new Error(
+      `Google Sheets API error: ${data.error?.message || JSON.stringify(data.error) || "Unknown error"}`
+    );
   }
 
   return (data.values as string[][]) || [];
@@ -55,7 +31,7 @@ export async function getSheetRows(
 
 /**
  * Extract Google Drive file ID from various Drive URL formats.
- * Handles: /file/d/ID/view, ?id=ID, /open?id=ID
+ * Handles: /file/d/ID/view, ?id=ID
  */
 export function extractDriveFileId(driveUrl: string): string | null {
   if (!driveUrl) return null;
@@ -71,55 +47,15 @@ export function extractDriveFileId(driveUrl: string): string | null {
 }
 
 /**
- * Download a file from Google Drive using OAuth access token.
- * Returns the file buffer and its MIME type, or null on failure.
+ * Convert a Drive file ID to a direct embeddable image URL.
+ * Works when the file (or its parent folder) is shared "Anyone with the link can view".
  */
-export async function downloadDriveFile(
-  accessToken: string,
-  fileId: string
-): Promise<{ buffer: ArrayBuffer; mimeType: string; extension: string } | null> {
-  // Get file metadata
-  const metaRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType,name&supportsAllDrives=true`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-  if (!metaRes.ok) {
-    const err = await metaRes.json().catch(() => ({}));
-    throw new Error(`Drive metadata fetch failed (${metaRes.status}): ${err?.error?.message || metaRes.statusText}`);
-  }
-  const meta = await metaRes.json();
-  const mimeType: string = meta.mimeType || "image/jpeg";
-
-  // Download file content (acknowledgeAbuse=true needed for some uploads)
-  const fileRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&acknowledgeAbuse=true&supportsAllDrives=true`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-  if (!fileRes.ok) {
-    const err = await fileRes.json().catch(() => ({}));
-    throw new Error(`Drive download failed (${fileRes.status}): ${err?.error?.message || fileRes.statusText}`);
-  }
-
-  const buffer = await fileRes.arrayBuffer();
-  const extension = mimeTypeToExtension(mimeType);
-  return { buffer, mimeType, extension };
-}
-
-function mimeTypeToExtension(mimeType: string): string {
-  const map: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/jpg": "jpg",
-    "image/png": "png",
-    "image/gif": "gif",
-    "image/webp": "webp",
-    "application/pdf": "pdf",
-  };
-  return map[mimeType] || "jpg";
+export function driveFileIdToImageUrl(fileId: string): string {
+  return `https://drive.google.com/uc?export=view&id=${fileId}`;
 }
 
 /**
- * Column indices for Shuttle Storm 2.0 Google Form responses sheet.
- * Google Forms appends columns in order: Timestamp, then each question.
+ * Column indices for the Google Form responses sheet.
  * Col 0: Timestamp
  * Col 1: Email Address
  * Col 2: Participant Name, age
@@ -166,7 +102,7 @@ export function ticketAmountForCategory(
 ): number {
   if (category === "mens_singles" || category === "womens_singles") return 150;
   if (category === "mens_doubles" || category === "mixed_doubles") return 250;
-  return 150; // default
+  return 150;
 }
 
 /** Split "Name, age" strings like "Balu, 22" into name + age parts */
