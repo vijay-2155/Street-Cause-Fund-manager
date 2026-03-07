@@ -31,14 +31,15 @@ export async function refreshGoogleAccessToken(refreshToken: string): Promise<st
 export async function getSheetRows(
   accessToken: string,
   sheetId: string,
-  sheetName: string,
+  _sheetName: string,
   startRow: number
 ): Promise<string[][]> {
   // Row 1 = header, data starts at row 2
   // If startRow=5, next row to fetch is row 7 (1 header + 5 synced + 1 next)
   const startRowNum = startRow + 2;
-  const range = `'${sheetName}'!A${startRowNum}:Z`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
+  // Use bare range without sheet name — defaults to first sheet, avoids name-parsing issues
+  const range = `A${startRowNum}:Z`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`;
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
