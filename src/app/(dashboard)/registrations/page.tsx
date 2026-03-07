@@ -186,6 +186,33 @@ export default function RegistrationsPage() {
     }
   };
 
+  const handleSyncAll = async () => {
+    if (configs.length === 0) {
+      toast.error("No registration sources configured");
+      return;
+    }
+    setSyncing("all");
+    let totalImported = 0;
+    let hadError = false;
+    for (const cfg of configs.filter((c) => c.isActive)) {
+      try {
+        const result = await syncRegistrations(cfg.id);
+        totalImported += result.imported;
+        if (result.errors.length > 0) hadError = true;
+      } catch {
+        hadError = true;
+      }
+    }
+    if (totalImported > 0) {
+      toast.success(`Synced — ${totalImported} new registration${totalImported !== 1 ? "s" : ""} imported`);
+    } else {
+      toast.success("All sources up to date");
+    }
+    if (hadError) toast.warning("Some rows had errors — check sources panel");
+    await fetchAll();
+    setSyncing(null);
+  };
+
   const handleApprove = async (id: string) => {
     setProcessing(id);
     try {
@@ -274,6 +301,20 @@ export default function RegistrationsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {configs.length > 0 && (
+            <Button
+              onClick={handleSyncAll}
+              disabled={syncing !== null}
+              className="bg-[#FF6B35] hover:bg-[#e55a25] text-white h-10 px-4"
+            >
+              {syncing === "all" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Sync All
+            </Button>
+          )}
           <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="border-2 border-gray-300 h-10">
