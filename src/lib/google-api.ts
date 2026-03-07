@@ -48,10 +48,11 @@ export function extractDriveFileId(driveUrl: string): string | null {
 
 /**
  * Convert a Drive file ID to a direct embeddable image URL.
+ * Uses the thumbnail endpoint which serves inline without redirect/confirmation page.
  * Works when the file (or its parent folder) is shared "Anyone with the link can view".
  */
 export function driveFileIdToImageUrl(fileId: string): string {
-  return `https://drive.google.com/uc?export=view&id=${fileId}`;
+  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
 }
 
 /**

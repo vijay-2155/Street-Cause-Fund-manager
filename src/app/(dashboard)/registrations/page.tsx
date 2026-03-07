@@ -760,7 +760,14 @@ export default function RegistrationsPage() {
                     <p className="text-sm font-semibold text-gray-700">Payment Screenshot</p>
                     <div className="rounded-xl overflow-hidden border-2 border-gray-200 bg-gray-50">
                       <img
-                        src={detailReg.screenshotUrl}
+                        src={(() => {
+                          // Normalise any Drive URL to the thumbnail endpoint which embeds inline
+                          const url = detailReg.screenshotUrl!;
+                          const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/) || url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                          return idMatch
+                            ? `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w1000`
+                            : url;
+                        })()}
                         alt="Payment screenshot"
                         className="w-full object-contain max-h-64"
                         onError={(e) => {
@@ -769,7 +776,7 @@ export default function RegistrationsPage() {
                       />
                     </div>
                     <a
-                      href={detailReg.screenshotUrl}
+                      href={detailReg.screenshotDriveUrl || detailReg.screenshotUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-[#0066FF] underline"
