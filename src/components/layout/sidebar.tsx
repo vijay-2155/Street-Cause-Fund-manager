@@ -16,6 +16,7 @@ import {
   Sparkles,
   BookOpen,
   Droplet,
+  Trophy,
 } from "lucide-react";
 import Image from "next/image";
 import { getClubSettings } from "@/app/actions/settings";
@@ -37,6 +38,7 @@ const navigation: NavItem[] = [
   { name: "Events", href: "/events", icon: Calendar, color: "#8B5CF6" },
   { name: "Donations", href: "/donations", icon: Heart, color: "#00D084" },
   { name: "Expenses", href: "/expenses", icon: Receipt, color: "#FF6B35" },
+  { name: "Registrations", href: "/registrations", icon: Trophy, color: "#FF6B35", allowedRoles: ["admin", "treasurer"] },
   { name: "Approvals", href: "/approvals", icon: CheckCircle, color: "#00D084", allowedRoles: ["admin", "treasurer"] },
   { name: "Reports", href: "/reports", icon: FileText, color: "#8B5CF6", allowedRoles: ["admin", "treasurer"] },
   { name: "Blog", href: "/posts", icon: BookOpen, color: "#10B981" },

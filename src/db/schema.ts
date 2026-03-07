@@ -6,6 +6,7 @@ import {
   decimal,
   date,
   boolean,
+  integer,
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -53,6 +54,18 @@ export const eventStatusEnum = pgEnum("event_status", [
   "active",
   "completed",
   "cancelled",
+]);
+export const registrationStatusEnum = pgEnum("registration_status", [
+  "pending",
+  "approved",
+  "rejected",
+]);
+export const genderEnum = pgEnum("gender", ["male", "female"]);
+export const registrationCategoryEnum = pgEnum("registration_category", [
+  "mens_singles",
+  "womens_singles",
+  "mens_doubles",
+  "mixed_doubles",
 ]);
 export const bloodGroupEnum = pgEnum("blood_group", [
   "A+",
@@ -192,6 +205,48 @@ export const blogPosts = pgTable("blog_posts", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Registration Configs Table
+export const registrationConfigs = pgTable("registration_configs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clubId: uuid("club_id").references(() => clubs.id, { onDelete: "cascade" }),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
+  configName: text("config_name").notNull(),
+  googleSheetId: text("google_sheet_id").notNull(),
+  sheetName: text("sheet_name").notNull().default("Form Responses 1"),
+  lastSyncedRow: integer("last_synced_row").notNull().default(0),
+  isActive: boolean("is_active").default(true),
+  createdBy: uuid("created_by").references(() => members.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Event Registrations Table
+export const eventRegistrations = pgTable("event_registrations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clubId: uuid("club_id").references(() => clubs.id, { onDelete: "cascade" }),
+  configId: uuid("config_id").references(() => registrationConfigs.id, { onDelete: "cascade" }),
+  googleFormRowIndex: integer("google_form_row_index").notNull(),
+  respondentEmail: text("respondent_email"),
+  participantName: text("participant_name").notNull(),
+  participantAge: text("participant_age"),
+  contactNumber: text("contact_number"),
+  gender: genderEnum("gender"),
+  category: registrationCategoryEnum("category"),
+  participant2Name: text("participant2_name"),
+  participant2Age: text("participant2_age"),
+  transactionId: text("transaction_id"),
+  screenshotDriveUrl: text("screenshot_drive_url"),
+  screenshotUrl: text("screenshot_url"),
+  ticketAmount: decimal("ticket_amount", { precision: 10, scale: 2 }).notNull().default("0"),
+  status: registrationStatusEnum("status").notNull().default("pending"),
+  rejectionReason: text("rejection_reason"),
+  reviewedBy: uuid("reviewed_by").references(() => members.id),
+  reviewedAt: timestamp("reviewed_at"),
+  importedAt: timestamp("imported_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const clubsRelations = relations(clubs, ({ many }) => ({
   members: many(members),
@@ -199,6 +254,8 @@ export const clubsRelations = relations(clubs, ({ many }) => ({
   donations: many(donations),
   expenses: many(expenses),
   blogPosts: many(blogPosts),
+  registrationConfigs: many(registrationConfigs),
+  eventRegistrations: many(eventRegistrations),
 }));
 
 export const membersRelations = relations(members, ({ one, many }) => ({
@@ -221,6 +278,12 @@ export const membersRelations = relations(members, ({ one, many }) => ({
   authoredPosts: many(blogPosts, {
     relationName: "authoredPosts",
   }),
+  createdConfigs: many(registrationConfigs, {
+    relationName: "createdConfigs",
+  }),
+  reviewedRegistrations: many(eventRegistrations, {
+    relationName: "reviewedRegistrations",
+  }),
 }));
 
 export const eventsRelations = relations(events, ({ one, many }) => ({
@@ -230,6 +293,7 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
   }),
   donations: many(donations),
   expenses: many(expenses),
+  registrationConfigs: many(registrationConfigs),
 }));
 
 export const donationsRelations = relations(donations, ({ one }) => ({
@@ -290,6 +354,39 @@ export const blogPostsRelations = relations(blogPosts, ({ one }) => ({
   }),
 }));
 
+export const registrationConfigsRelations = relations(registrationConfigs, ({ one, many }) => ({
+  club: one(clubs, {
+    fields: [registrationConfigs.clubId],
+    references: [clubs.id],
+  }),
+  event: one(events, {
+    fields: [registrationConfigs.eventId],
+    references: [events.id],
+  }),
+  createdByMember: one(members, {
+    fields: [registrationConfigs.createdBy],
+    references: [members.id],
+    relationName: "createdConfigs",
+  }),
+  registrations: many(eventRegistrations),
+}));
+
+export const eventRegistrationsRelations = relations(eventRegistrations, ({ one }) => ({
+  club: one(clubs, {
+    fields: [eventRegistrations.clubId],
+    references: [clubs.id],
+  }),
+  config: one(registrationConfigs, {
+    fields: [eventRegistrations.configId],
+    references: [registrationConfigs.id],
+  }),
+  reviewer: one(members, {
+    fields: [eventRegistrations.reviewedBy],
+    references: [members.id],
+    relationName: "reviewedRegistrations",
+  }),
+}));
+
 // Export types
 export type Club = typeof clubs.$inferSelect;
 export type NewClub = typeof clubs.$inferInsert;
@@ -305,3 +402,7 @@ export type Expense = typeof expenses.$inferSelect;
 export type NewExpense = typeof expenses.$inferInsert;
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type NewBlogPost = typeof blogPosts.$inferInsert;
+export type RegistrationConfig = typeof registrationConfigs.$inferSelect;
+export type NewRegistrationConfig = typeof registrationConfigs.$inferInsert;
+export type EventRegistration = typeof eventRegistrations.$inferSelect;
+export type NewEventRegistration = typeof eventRegistrations.$inferInsert;

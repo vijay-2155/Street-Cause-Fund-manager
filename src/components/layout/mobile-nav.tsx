@@ -15,6 +15,7 @@ import {
   FileText,
   Settings,
   Users,
+  Trophy,
 } from "lucide-react";
 import { getCurrentUserRole } from "@/app/actions/donations";
 
@@ -33,6 +34,7 @@ const allNavItems: MobileNavItem[] = [
   { name: "Events", href: "/events", icon: Calendar },
   { name: "Blog", href: "/posts", icon: BookOpen },
   { name: "Team", href: "/team", icon: Users, allowedRoles: ["admin", "treasurer"] },
+  { name: "Registrations", href: "/registrations", icon: Trophy, allowedRoles: ["admin", "treasurer"] },
   { name: "Approvals", href: "/approvals", icon: CheckCircle, allowedRoles: ["admin", "treasurer"] },
   { name: "Reports", href: "/reports", icon: FileText, allowedRoles: ["admin", "treasurer"] },
   { name: "Settings", href: "/settings", icon: Settings, allowedRoles: ["admin"] },
