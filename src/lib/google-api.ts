@@ -80,19 +80,25 @@ export async function downloadDriveFile(
 ): Promise<{ buffer: ArrayBuffer; mimeType: string; extension: string } | null> {
   // Get file metadata
   const metaRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType,name`,
+    `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType,name&supportsAllDrives=true`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
-  if (!metaRes.ok) return null;
+  if (!metaRes.ok) {
+    const err = await metaRes.json().catch(() => ({}));
+    throw new Error(`Drive metadata fetch failed (${metaRes.status}): ${err?.error?.message || metaRes.statusText}`);
+  }
   const meta = await metaRes.json();
   const mimeType: string = meta.mimeType || "image/jpeg";
 
-  // Download file content
+  // Download file content (acknowledgeAbuse=true needed for some uploads)
   const fileRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&acknowledgeAbuse=true&supportsAllDrives=true`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
-  if (!fileRes.ok) return null;
+  if (!fileRes.ok) {
+    const err = await fileRes.json().catch(() => ({}));
+    throw new Error(`Drive download failed (${fileRes.status}): ${err?.error?.message || fileRes.statusText}`);
+  }
 
   const buffer = await fileRes.arrayBuffer();
   const extension = mimeTypeToExtension(mimeType);
@@ -147,14 +153,11 @@ export function normalizeCategory(
   raw: string
 ): "mens_singles" | "womens_singles" | "mens_doubles" | "mixed_doubles" | null {
   const val = raw?.trim().toLowerCase();
-  if (val.includes("men's singles") || val === "men's singles") return "mens_singles";
-  if (val.includes("women's singles") || val === "women's singles") return "womens_singles";
-  if (val.includes("men's doubles") || val === "mens_doubles") return "mens_doubles";
+  // Check women's BEFORE men's — "women's singles" contains "men's singles" as substring
+  if (val.includes("women") && val.includes("single")) return "womens_singles";
+  if (val.includes("men") && val.includes("single")) return "mens_singles";
   if (val.includes("mixed")) return "mixed_doubles";
-  // fallback substring checks
-  if (val.startsWith("men") && val.includes("single")) return "mens_singles";
-  if (val.startsWith("women") && val.includes("single")) return "womens_singles";
-  if (val.startsWith("men") && val.includes("double")) return "mens_doubles";
+  if (val.includes("men") && val.includes("double")) return "mens_doubles";
   return null;
 }
 

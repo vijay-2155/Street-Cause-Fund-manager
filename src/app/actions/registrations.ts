@@ -296,9 +296,9 @@ export async function syncRegistrations(configId: string): Promise<{
                 screenshotUrl = publicUrl;
               }
             }
-          } catch {
+          } catch (screenshotErr: any) {
             // Screenshot download failure is non-fatal — store Drive URL as fallback
-          }
+            errors.push(`Row ${rowIndex} screenshot: ${screenshotErr.message}`);
         }
       }
 
@@ -436,8 +436,8 @@ export async function syncAllActiveConfigs(clubId: string): Promise<{
                     screenshotUrl = publicUrl;
                   }
                 }
-              } catch {
-                // non-fatal
+              } catch (screenshotErr: any) {
+                errors.push(`Config "${config.configName}" row ${rowIndex} screenshot: ${screenshotErr.message}`);
               }
             }
           }
