@@ -23,6 +23,40 @@ export async function getEvents() {
   return allEvents;
 }
 
+export async function updateEvent(
+  id: string,
+  formData: {
+    name: string;
+    description: string;
+    target_amount: string;
+    start_date: string;
+    end_date: string;
+    status: "upcoming" | "active" | "completed" | "cancelled";
+  }
+) {
+  const member = await requireRole(["admin", "treasurer"]);
+
+  const amount = parseFloat(formData.target_amount);
+  if (isNaN(amount) || amount <= 0) {
+    throw new Error("Invalid target amount");
+  }
+
+  const [updated] = await db
+    .update(events)
+    .set({
+      name: formData.name.trim(),
+      description: formData.description?.trim() || null,
+      targetAmount: formData.target_amount,
+      startDate: formData.start_date || null,
+      endDate: formData.end_date || null,
+      status: formData.status,
+    })
+    .where(eq(events.id, id))
+    .returning();
+
+  return updated;
+}
+
 export async function createEvent(formData: {
   name: string;
   description: string;

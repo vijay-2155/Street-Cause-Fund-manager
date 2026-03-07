@@ -27,19 +27,21 @@ import {
   Loader2,
   Calendar as CalendarIcon,
   TrendingUp,
-  CheckCircle,
   Clock,
   Target,
   Sparkles,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getEvents, createEvent } from "@/app/actions/events";
+import { getEvents, createEvent, updateEvent } from "@/app/actions/events";
 import { getCurrentUserRole } from "@/app/actions/donations";
 
 export default function EventsPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
   const [userRole, setUserRole] = useState<string>("");
   const [formData, setFormData] = useState({
@@ -102,6 +104,47 @@ export default function EventsPage() {
     } catch (error: any) {
       console.error("Error creating event:", error);
       toast.error(error.message || "Failed to create event");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditOpen = (event: any) => {
+    setEditingEvent(event);
+    setFormData({
+      name: event.name,
+      description: event.description || "",
+      target_amount: String(event.targetAmount),
+      start_date: event.startDate ? event.startDate.slice(0, 10) : "",
+      end_date: event.endDate ? event.endDate.slice(0, 10) : "",
+      status: event.status,
+    });
+    setEditOpen(true);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.name.trim()) {
+      toast.error("Event name is required");
+      return;
+    }
+
+    const amount = parseFloat(formData.target_amount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid target amount");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await updateEvent(editingEvent.id, formData);
+      toast.success("Event updated successfully!");
+      setEditOpen(false);
+      setEditingEvent(null);
+      fetchEvents();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update event");
     } finally {
       setSubmitting(false);
     }
@@ -312,6 +355,154 @@ export default function EventsPage() {
         </Dialog>
       </div>
 
+      {/* Edit Event Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[#E6F2FF] rounded-lg">
+                <Pencil className="h-5 w-5 text-[#0066FF]" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl">Edit Event</DialogTitle>
+                <DialogDescription className="mt-1">
+                  Update the details of this fundraising event
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <form onSubmit={handleUpdate} className="space-y-5 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name" className="text-sm font-semibold text-gray-700">
+                Event Name *
+              </Label>
+              <Input
+                id="edit-name"
+                placeholder="e.g., Winter Food Drive 2026"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                disabled={submitting}
+                required
+                className="border-2 border-gray-300 focus:border-[#0066FF] h-11"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-description" className="text-sm font-semibold text-gray-700">
+                Description (Optional)
+              </Label>
+              <Textarea
+                id="edit-description"
+                placeholder="Describe the event purpose and goals..."
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                disabled={submitting}
+                rows={3}
+                className="border-2 border-gray-300 focus:border-[#0066FF] resize-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-target_amount" className="text-sm font-semibold text-gray-700">
+                  Target Amount (₹) *
+                </Label>
+                <Input
+                  id="edit-target_amount"
+                  type="number"
+                  placeholder="100000"
+                  value={formData.target_amount}
+                  onChange={(e) => setFormData({ ...formData, target_amount: e.target.value })}
+                  disabled={submitting}
+                  required
+                  className="border-2 border-gray-300 focus:border-[#0066FF] h-11"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-status" className="text-sm font-semibold text-gray-700">
+                  Status *
+                </Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => setFormData({ ...formData, status: value as any })}
+                  disabled={submitting}
+                >
+                  <SelectTrigger className="border-2 border-gray-300 focus:border-[#0066FF] h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="upcoming">Upcoming</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-start_date" className="text-sm font-semibold text-gray-700">
+                  Start Date (Optional)
+                </Label>
+                <Input
+                  id="edit-start_date"
+                  type="date"
+                  value={formData.start_date}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  disabled={submitting}
+                  className="border-2 border-gray-300 focus:border-[#0066FF] h-11"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-end_date" className="text-sm font-semibold text-gray-700">
+                  End Date (Optional)
+                </Label>
+                <Input
+                  id="edit-end_date"
+                  type="date"
+                  value={formData.end_date}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                  disabled={submitting}
+                  className="border-2 border-gray-300 focus:border-[#0066FF] h-11"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t-2 border-gray-200">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditOpen(false)}
+                disabled={submitting}
+                className="border-2 border-gray-300"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="bg-[#0066FF] hover:bg-[#0052CC] text-white shadow-lg"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border-2 border-gray-200 shadow-lg hover:shadow-xl transition-shadow">
@@ -426,9 +617,21 @@ export default function EventsPage() {
                     <CardTitle className="text-lg font-bold text-gray-900 line-clamp-2 flex-1">
                       {event.name}
                     </CardTitle>
-                    <Badge className={`${getStatusColor(event.status)} border-2 text-xs font-bold shrink-0`}>
-                      {event.status.toUpperCase()}
-                    </Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge className={`${getStatusColor(event.status)} border-2 text-xs font-bold`}>
+                        {event.status.toUpperCase()}
+                      </Badge>
+                      {canCreateEvent && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-gray-400 hover:text-[#0066FF] hover:bg-[#E6F2FF]"
+                          onClick={() => handleEditOpen(event)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   {event.description && (
                     <p className="text-sm text-gray-600 line-clamp-2 mt-2">{event.description}</p>

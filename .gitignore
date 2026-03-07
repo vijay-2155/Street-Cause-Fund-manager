@@ -52,3 +52,6 @@ drizzle/
 # Supabase local dev
 supabase/.temp/
 supabase/config.toml
+
+# Production setup SQL (contains full schema, keep local only)
+vercel.sql

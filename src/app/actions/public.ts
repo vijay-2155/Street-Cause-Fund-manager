@@ -6,10 +6,11 @@ import { eq, and, isNotNull, desc } from "drizzle-orm";
 import { getCurrentMember } from "@/lib/auth/helpers";
 
 export async function getBloodDonors() {
-  await getCurrentMember(); // requires sign-in
+  const { member } = await getCurrentMember(); // requires sign-in
   // Fetch all donations where donor agreed to be contacted for blood and has a blood group
   const bloodDonations = await db.query.donations.findMany({
     where: and(
+      eq(donations.clubId, member.clubId!),
       eq(donations.canContactForBlood, true),
       isNotNull(donations.bloodGroup),
       eq(donations.status, "approved"), // Only approved donations
@@ -23,18 +24,26 @@ export async function getBloodDonors() {
     orderBy: desc(donations.donationDate),
   });
 
-  // Deduplicate by phone number, keeping the most recent donation date
-  const uniqueDonorsMap = new Map<string, (typeof bloodDonations)[0]>();
+  // Deduplicate: by phone if available, otherwise by name
+  // Since ordered by desc(donationDate), the first occurrence is the most recent
+  const seenPhones = new Set<string>();
+  const seenNames = new Set<string>();
+  const uniqueDonors: (typeof bloodDonations)[0][] = [];
 
   for (const donation of bloodDonations) {
     if (donation.donorPhone) {
-      // If we haven't seen this phone number before, add it
-      // Since it's ordered by desc(donationDate), the first one we see is the most recent
-      if (!uniqueDonorsMap.has(donation.donorPhone)) {
-        uniqueDonorsMap.set(donation.donorPhone, donation);
+      if (!seenPhones.has(donation.donorPhone)) {
+        seenPhones.add(donation.donorPhone);
+        uniqueDonors.push(donation);
+      }
+    } else {
+      const nameKey = donation.donorName.trim().toLowerCase();
+      if (!seenNames.has(nameKey)) {
+        seenNames.add(nameKey);
+        uniqueDonors.push(donation);
       }
     }
   }
 
-  return Array.from(uniqueDonorsMap.values());
+  return uniqueDonors;
 }
