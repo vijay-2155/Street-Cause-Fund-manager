@@ -123,6 +123,7 @@ export default function RegistrationsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const [selectedConfig, setSelectedConfig] = useState<string>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [syncing, setSyncing] = useState<string | null>(null);
   const [processing, setProcessing] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
@@ -170,8 +171,9 @@ export default function RegistrationsPage() {
     let list = registrations;
     if (selectedConfig !== "all") list = list.filter((r) => (r as any).configId === selectedConfig);
     if (activeTab !== "all") list = list.filter((r) => r.status === activeTab);
+    if (selectedCategory !== "all") list = list.filter((r) => (r.category || "uncategorized") === selectedCategory);
     return list;
-  }, [registrations, selectedConfig, activeTab]);
+  }, [registrations, selectedConfig, activeTab, selectedCategory]);
 
   const handleSync = async (configId: string) => {
     setSyncing(configId);
@@ -606,6 +608,17 @@ export default function RegistrationsPage() {
               </SelectContent>
             </Select>
           )}
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-44 border-2 border-gray-300 h-10">
+              <SelectValue placeholder="All categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {["mens_singles", "womens_singles", "mens_doubles", "mixed_doubles"].map((cat) => (
+                <SelectItem key={cat} value={cat}>{CATEGORY_LABELS[cat]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <span className="text-sm text-gray-500 font-medium ml-auto">
             {filtered.length} registration{filtered.length !== 1 ? "s" : ""}
           </span>
@@ -621,70 +634,103 @@ export default function RegistrationsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {filtered.map((reg) => (
-            <Card
-              key={reg.id}
-              className="border-2 border-gray-200 hover:border-[#FF6B35] hover:shadow-md transition-all cursor-pointer"
-              onClick={() => setDetailReg(reg)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start gap-4 flex-wrap">
-                  {/* Left: participant info */}
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-gray-900">
-                        {reg.participantName}
-                        {reg.participantAge ? `, ${reg.participantAge}` : ""}
-                      </span>
-                      {reg.category && (
-                        <Badge className={`${CATEGORY_COLORS[reg.category] || "bg-gray-100 text-gray-700"} border text-xs font-semibold`}>
-                          {CATEGORY_LABELS[reg.category] || reg.category}
-                        </Badge>
-                      )}
-                    </div>
-                    {reg.participant2Name && reg.participant2Name.trim() && (
-                      <p className="text-sm text-gray-600">
-                        + {reg.participant2Name}
-                        {reg.participant2Age ? `, ${reg.participant2Age}` : ""}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-4 flex-wrap text-xs text-gray-500">
-                      {reg.contactNumber && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" />
-                          {reg.contactNumber}
-                        </span>
-                      )}
-                      {reg.transactionId && (
-                        <span className="font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-700">
-                          TXN: {reg.transactionId}
-                        </span>
-                      )}
-                    </div>
+        <div className="space-y-6">
+          {(() => {
+            const categoryOrder = ["mens_singles", "womens_singles", "mens_doubles", "mixed_doubles"];
+            const grouped: Record<string, Registration[]> = {};
+            for (const reg of filtered) {
+              const key = reg.category || "uncategorized";
+              if (!grouped[key]) grouped[key] = [];
+              grouped[key].push(reg);
+            }
+            const sortedKeys = [
+              ...categoryOrder.filter((k) => grouped[k]),
+              ...Object.keys(grouped).filter((k) => !categoryOrder.includes(k)),
+            ];
+            const CATEGORY_SECTION_STYLES: Record<string, { bar: string; badge: string; label: string }> = {
+              mens_singles:   { bar: "border-[#0066FF] bg-[#E6F2FF]", badge: "bg-[#0066FF] text-white", label: "text-[#0066FF]" },
+              womens_singles: { bar: "border-[#8B5CF6] bg-[#FDF4FF]", badge: "bg-[#8B5CF6] text-white", label: "text-[#8B5CF6]" },
+              mens_doubles:   { bar: "border-[#FF6B35] bg-[#FFF7ED]", badge: "bg-[#FF6B35] text-white", label: "text-[#FF6B35]" },
+              mixed_doubles:  { bar: "border-[#10B981] bg-[#D1FAE5]", badge: "bg-[#10B981] text-white", label: "text-[#10B981]" },
+            };
+            return sortedKeys.map((catKey) => {
+              const regs = grouped[catKey];
+              const style = CATEGORY_SECTION_STYLES[catKey];
+              const label = CATEGORY_LABELS[catKey] || catKey.replace(/_/g, " ");
+              return (
+                <div key={catKey} className="space-y-2">
+                  {/* Section header */}
+                  <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border-2 ${style?.bar || "border-gray-200 bg-gray-50"}`}>
+                    <span className={`text-sm font-bold tracking-wide ${style?.label || "text-gray-700"}`}>
+                      {label.toUpperCase()}
+                    </span>
+                    <span className={`ml-auto text-xs font-bold px-2.5 py-0.5 rounded-full ${style?.badge || "bg-gray-200 text-gray-700"}`}>
+                      {regs.length}
+                    </span>
                   </div>
+                  {/* Cards */}
+                  {regs.map((reg) => (
+                    <Card
+                      key={reg.id}
+                      className="border-2 border-gray-200 hover:border-[#FF6B35] hover:shadow-md transition-all cursor-pointer"
+                      onClick={() => setDetailReg(reg)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-4 flex-wrap">
+                          {/* Left: participant info */}
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-gray-900">
+                                {reg.participantName}
+                                {reg.participantAge ? `, ${reg.participantAge}` : ""}
+                              </span>
+                            </div>
+                            {reg.participant2Name && reg.participant2Name.trim() && (
+                              <p className="text-sm text-gray-600">
+                                + {reg.participant2Name}
+                                {reg.participant2Age ? `, ${reg.participant2Age}` : ""}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-4 flex-wrap text-xs text-gray-500">
+                              {reg.contactNumber && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="h-3 w-3" />
+                                  {reg.contactNumber}
+                                </span>
+                              )}
+                              {reg.transactionId && (
+                                <span className="font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-700">
+                                  TXN: {reg.transactionId}
+                                </span>
+                              )}
+                            </div>
+                          </div>
 
-                  {/* Right: amount + status */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-gray-900">
-                        ₹{Number(reg.ticketAmount).toLocaleString("en-IN")}
-                      </p>
-                      {reg.screenshotUrl && (
-                        <p className="text-xs text-[#0066FF] flex items-center justify-end gap-1">
-                          <ImageIcon className="h-3 w-3" />
-                          Screenshot
-                        </p>
-                      )}
-                    </div>
-                    <Badge className={`${getStatusStyle(reg.status)} border-2 text-xs font-bold uppercase`}>
-                      {reg.status}
-                    </Badge>
-                  </div>
+                          {/* Right: amount + status */}
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="text-right">
+                              <p className="text-lg font-bold text-gray-900">
+                                ₹{Number(reg.ticketAmount).toLocaleString("en-IN")}
+                              </p>
+                              {reg.screenshotUrl && (
+                                <p className="text-xs text-[#0066FF] flex items-center justify-end gap-1">
+                                  <ImageIcon className="h-3 w-3" />
+                                  Screenshot
+                                </p>
+                              )}
+                            </div>
+                            <Badge className={`${getStatusStyle(reg.status)} border-2 text-xs font-bold uppercase`}>
+                              {reg.status}
+                            </Badge>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              );
+            });
+          })()}
         </div>
       )}
 
