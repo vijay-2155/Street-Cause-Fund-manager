@@ -80,6 +80,31 @@ export async function updateRegistrationConfig(
     );
 }
 
+export async function deleteRegistrationConfig(configId: string) {
+  const member = await requireRole(["admin", "treasurer"]);
+
+  // Delete all registrations for this config first
+  await db
+    .delete(eventRegistrations)
+    .where(
+      and(
+        eq(eventRegistrations.configId, configId),
+        eq(eventRegistrations.clubId, member.clubId!)
+      )
+    );
+
+  await db
+    .delete(registrationConfigs)
+    .where(
+      and(
+        eq(registrationConfigs.id, configId),
+        eq(registrationConfigs.clubId, member.clubId!)
+      )
+    );
+
+  return { success: true };
+}
+
 export async function resetConfigSyncedRow(configId: string) {
   const member = await requireRole(["admin", "treasurer"]);
 

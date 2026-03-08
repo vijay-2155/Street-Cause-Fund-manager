@@ -57,6 +57,7 @@ import {
   approveRegistration,
   rejectRegistration,
   deleteRegistration,
+  deleteRegistrationConfig,
   resetConfigSyncedRow,
 } from "@/app/actions/registrations";
 import { getEvents } from "@/app/actions/events";
@@ -203,6 +204,17 @@ export default function RegistrationsPage() {
       await fetchAll();
     } catch (e: any) {
       toast.error(e.message || "Reset failed");
+    }
+  };
+
+  const handleDeleteConfig = async (configId: string, configName: string) => {
+    if (!confirm(`Remove "${configName}"? This will also delete all its imported registrations. This cannot be undone.`)) return;
+    try {
+      await deleteRegistrationConfig(configId);
+      toast.success(`"${configName}" removed`);
+      await fetchAll();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to remove source");
     }
   };
 
@@ -528,6 +540,16 @@ export default function RegistrationsPage() {
                       title="Reset sync pointer (re-import all rows)"
                     >
                       <RotateCcw className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDeleteConfig(cfg.id, cfg.configName)}
+                      disabled={syncing !== null}
+                      className="h-8 px-2 border-red-200 text-red-400 hover:text-red-600 hover:bg-red-50 hover:border-red-400"
+                      title="Remove this source and all its registrations"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       size="sm"
