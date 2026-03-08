@@ -282,7 +282,7 @@ export async function syncRegistrations(configId: string): Promise<{
         continue;
       }
 
-      // Deduplication: skip if this row was already imported
+      // Deduplication: skip if this row was already imported (same config + row index)
       const existing = await db.query.eventRegistrations.findFirst({
         where: and(
           eq(eventRegistrations.configId, config.id),
@@ -305,6 +305,22 @@ export async function syncRegistrations(configId: string): Promise<{
       const category = normalizeCategory(row[FORM_COLUMNS.CATEGORY] || "");
       const gender = normalizeGender(row[FORM_COLUMNS.GENDER] || "");
       const ticketAmount = ticketAmountForCategory(category);
+
+      // Cross-config dedup: skip if same transaction ID already exists for this club
+      const rawTxnId = row[FORM_COLUMNS.TRANSACTION_ID]?.trim();
+      if (rawTxnId) {
+        const txnDup = await db.query.eventRegistrations.findFirst({
+          where: and(
+            eq(eventRegistrations.clubId, member.clubId!),
+            eq(eventRegistrations.transactionId, rawTxnId)
+          ),
+          columns: { id: true },
+        });
+        if (txnDup) {
+          skipped++;
+          continue;
+        }
+      }
 
       const driveUrl = row[FORM_COLUMNS.SCREENSHOT_URL] || "";
       let screenshotUrl: string | null = null;
@@ -404,6 +420,20 @@ export async function syncAllActiveConfigs(clubId: string): Promise<{
           const category = normalizeCategory(row[FORM_COLUMNS.CATEGORY] || "");
           const gender = normalizeGender(row[FORM_COLUMNS.GENDER] || "");
           const ticketAmount = ticketAmountForCategory(category);
+
+          // Cross-config dedup by transaction ID
+          const rawTxnId = row[FORM_COLUMNS.TRANSACTION_ID]?.trim();
+          if (rawTxnId) {
+            const txnDup = await db.query.eventRegistrations.findFirst({
+              where: and(
+                eq(eventRegistrations.clubId, config.clubId!),
+                eq(eventRegistrations.transactionId, rawTxnId)
+              ),
+              columns: { id: true },
+            });
+            if (txnDup) continue;
+          }
+
           const driveUrl = row[FORM_COLUMNS.SCREENSHOT_URL] || "";
           let screenshotUrl: string | null = null;
           if (driveUrl) {
